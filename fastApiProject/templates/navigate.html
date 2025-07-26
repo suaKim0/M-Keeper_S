@@ -81,6 +81,24 @@
             document.getElementById('connect-bluetooth').addEventListener('click', selectBluetoothDevice);
         });
 
+       //**장애물 감지 시 경로 재검색
+        async function fetchAndNavigateAgain() {
+            try {
+                const res = await fetch('/recalculate_route'); //경로 재탐색 API
+                const newDirections = await res.json();
+
+                if (newDirections && newDirections.path && newDirections.guides) {
+                    showDirectionsOnMap(newDirections.path);          //지도 다시 그림
+                    await sendDirectionsToArduino(newDirections.guides);  //블루투스로 명령 전송
+                } else {
+                    console.warn('Invalid new path data');
+                }
+            } catch (error) {
+                console.error('Error during path rediscovering: ', error);
+            }
+        }
+
+
         async function captureImage() {
             const video = document.createElement('video');
             const canvas = document.createElement('canvas');
@@ -92,6 +110,8 @@
                 await new Promise((resolve) => video.onloadedmetadata = resolve);
                 video.play();
 
+                canvas.width = video.videoWidth || 640; //여기
+                canvas.height = video.videoHeight || 480; //여기
                 context.drawImage(video, 0, 0, canvas.width, canvas.height);
                 const imageData = canvas.toDataURL('image/jpeg');
 
@@ -103,7 +123,13 @@
                 const detectionResult = await response.json();
                 console.log('Detection Result:', detectionResult);
 
-                // Process detectionResult as needed
+                // 장애물 감지 시 경로 재검색
+                if (detectionResult.obstacle === true) {
+                    alert('Obstacle detected, Rescan path.');
+                    await fetchAndNavigateAgain();
+                } else {
+                    alert('There are no obstacles.');
+                }
 
             } catch (error) {
                 console.error('Error capturing image', error);
